@@ -220,12 +220,3 @@ SlotFlow does not make guarantees. All copy uses honest language:
 
 This is enforced by the smoke test suite.
 
----
-
-## Documentation
-
-1. [PRD](.omx/plans/prd-slotflow-mvp.md) -- Product definition, acceptance criteria
-2. [Architecture](docs/architecture.md) -- System design, state machine, lifecycle
-3. [API Contracts](docs/api-contracts.md) -- SDK, HTTP, receipt schema
-4. [Test Spec](.omx/plans/test-spec-slotflow-mvp.md) -- Test strategy, verification criteria
-5. [Implementation Plan](docs/implementation-plan.md) -- Build phases, file structure

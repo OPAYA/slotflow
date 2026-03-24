@@ -9,4 +9,6 @@ dist/
 coverage/
 .vercel/
 .DS_Store
+.omx/
+.omc/
 .keys/
