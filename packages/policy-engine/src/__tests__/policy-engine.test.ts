@@ -108,13 +108,13 @@ describe("Policy Engine", () => {
       expect(plan.feeStrategy.estimatedAdditionalLamports).toBeLessThanOrEqual(3000);
     });
 
-    it("throws when no healthy route exists", () => {
+    it("throws SlotFlowError when no healthy route exists", () => {
       const unhealthy = healthAll.map((h) => ({ ...h, healthy: false }));
       expect(() =>
         deriveExecutionPlan(
           makeInput({ options: { policy: "FAST" }, routeHealth: unhealthy }),
         ),
-      ).toThrow("NO_HEALTHY_ROUTE");
+      ).toThrow(expect.objectContaining({ code: "NO_HEALTHY_ROUTE" }));
     });
 
     it("generates at least 2 explanation bullets", () => {

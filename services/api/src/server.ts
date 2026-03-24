@@ -6,8 +6,11 @@ import { createMemoryStore } from "./lib/store.js";
 import { ExecutionService } from "./lib/execution-service.js";
 import { registerExecutionRoutes } from "./routes/executions.js";
 import {
-  PublicRpcAdapter, ProtectedAdapter, FastAdapter,
-  createDefaultMockAdapters, type RouteAdapter,
+  createPublicRpcAdapter,
+  createProtectedAdapter,
+  createFastAdapter,
+  createDefaultMockAdapters,
+  type RouteAdapter,
 } from "@slotflow/route-adapters";
 
 const PORT = Number(process.env.PORT ?? 3001);
@@ -17,7 +20,6 @@ export async function buildApp() {
   const app = Fastify({ logger: true });
   await app.register(cors, { origin: true });
 
-  // adapters — mock mode for demo, real adapters for production
   let adapters: RouteAdapter[];
 
   if (MOCK_MODE) {
@@ -25,9 +27,9 @@ export async function buildApp() {
     adapters = createDefaultMockAdapters();
   } else {
     adapters = [
-      new PublicRpcAdapter(process.env.SLOTFLOW_PUBLIC_RPC_URL ?? "https://api.devnet.solana.com"),
-      new ProtectedAdapter(process.env.SLOTFLOW_PROTECTED_RPC_URL ?? "https://api.devnet.solana.com"),
-      new FastAdapter(process.env.SLOTFLOW_FAST_RPC_URL ?? "https://api.devnet.solana.com"),
+      createPublicRpcAdapter(process.env.SLOTFLOW_PUBLIC_RPC_URL ?? "https://api.devnet.solana.com"),
+      createProtectedAdapter(process.env.SLOTFLOW_PROTECTED_RPC_URL ?? "https://api.devnet.solana.com"),
+      createFastAdapter(process.env.SLOTFLOW_FAST_RPC_URL ?? "https://api.devnet.solana.com"),
     ];
   }
 
@@ -36,7 +38,6 @@ export async function buildApp() {
 
   registerExecutionRoutes(app, service, store);
 
-  // health check
   app.get("/health", async () => ({ status: "ok", timestamp: new Date().toISOString() }));
 
   return app;

@@ -6,7 +6,7 @@ import type {
   RouteHealthSnapshot,
   SlotFlowSendOptions,
 } from "@slotflow/shared";
-import { POLICY_DEFAULTS } from "@slotflow/shared";
+import { POLICY_DEFAULTS, SlotFlowError } from "@slotflow/shared";
 import { deriveFeeStrategy } from "./fee.js";
 import { generateExplanation } from "./explain.js";
 import { scoreRoutes } from "./scorer.js";
@@ -29,7 +29,7 @@ export function deriveExecutionPlan(input: PolicyEngineInput): DerivedExecutionP
   const healthyEstimates = routeEstimates.filter((e) => healthyIds.has(e.routeId));
 
   if (healthyEstimates.length === 0) {
-    throw new Error("NO_HEALTHY_ROUTE");
+    throw new SlotFlowError("NO_HEALTHY_ROUTE", "No healthy route available for policy execution");
   }
 
   // 2. 정책 기준 scoring

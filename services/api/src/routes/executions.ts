@@ -3,8 +3,8 @@
 import type { FastifyInstance } from "fastify";
 import type { ExecutionService } from "../lib/execution-service.js";
 import type { ExecutionStore } from "../lib/store.js";
-import type { SlotFlowSendRequest, ApiError } from "@slotflow/shared";
-import { POLICIES } from "@slotflow/shared";
+import type { SlotFlowSendRequest, ApiErrorResponse } from "@slotflow/shared";
+import { POLICIES, SlotFlowError } from "@slotflow/shared";
 
 export function registerExecutionRoutes(
   app: FastifyInstance,
@@ -15,47 +15,36 @@ export function registerExecutionRoutes(
   app.post<{ Body: SlotFlowSendRequest }>("/v1/executions", async (req, reply) => {
     const body = req.body;
 
-    // validation
     if (!body?.signedTransaction || !body?.options?.policy) {
-      const err: ApiError = {
-        error: { code: "INVALID_REQUEST", message: "signedTransaction and options.policy are required" },
-      };
-      return reply.status(400).send(err);
+      return reply.status(400).send(errorResponse("INVALID_REQUEST", "signedTransaction and options.policy are required"));
     }
 
     if (!POLICIES.includes(body.options.policy)) {
-      const err: ApiError = {
-        error: { code: "UNSUPPORTED_POLICY", message: `Unknown policy: ${body.options.policy}` },
-      };
-      return reply.status(400).send(err);
+      return reply.status(400).send(errorResponse("UNSUPPORTED_POLICY", `Unknown policy: ${body.options.policy}`));
     }
 
     try {
       const receipt = await service.execute(body);
       return reply.status(201).send(receipt);
     } catch (e) {
-      const message = e instanceof Error ? e.message : "Unknown error";
-      const code = message === "NO_HEALTHY_ROUTE" ? "NO_HEALTHY_ROUTE" : "ADAPTER_SEND_FAILED";
-      const err: ApiError = {
-        error: { code, message, retryable: code === "ADAPTER_SEND_FAILED" },
-      };
-      return reply.status(code === "NO_HEALTHY_ROUTE" ? 503 : 500).send(err);
+      if (e instanceof SlotFlowError) {
+        const status = e.code === "NO_HEALTHY_ROUTE" ? 503 : 500;
+        return reply.status(status).send(errorResponse(e.code, e.message, e.retryable));
+      }
+      return reply.status(500).send(errorResponse("ADAPTER_SEND_FAILED", "Unexpected error", true));
     }
   });
 
-  // GET /v1/executions/:receiptId — get receipt
+  // GET /v1/executions/:receiptId
   app.get<{ Params: { receiptId: string } }>("/v1/executions/:receiptId", async (req, reply) => {
     const receipt = store.get(req.params.receiptId);
     if (!receipt) {
-      const err: ApiError = {
-        error: { code: "RECEIPT_NOT_FOUND", message: `Receipt ${req.params.receiptId} not found` },
-      };
-      return reply.status(404).send(err);
+      return reply.status(404).send(errorResponse("RECEIPT_NOT_FOUND", `Receipt ${req.params.receiptId} not found`));
     }
     return receipt;
   });
 
-  // GET /v1/executions — list executions
+  // GET /v1/executions
   app.get("/v1/executions", async (req) => {
     const query = req.query as Record<string, string>;
     const executions = store.list({
@@ -68,7 +57,7 @@ export function registerExecutionRoutes(
     return { executions, nextCursor: undefined };
   });
 
-  // GET /v1/metrics/compare — policy comparison
+  // GET /v1/metrics/compare
   app.get("/v1/metrics/compare", async (req) => {
     const query = req.query as Record<string, string>;
     const all = store.list({ actionGroup: query.actionGroup });
@@ -87,4 +76,8 @@ export function registerExecutionRoutes(
 
     return { rows };
   });
+}
+
+function errorResponse(code: string, message: string, retryable?: boolean): ApiErrorResponse {
+  return { error: { code: code as ApiErrorResponse["error"]["code"], message, retryable } };
 }

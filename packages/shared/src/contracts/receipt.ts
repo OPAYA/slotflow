@@ -83,6 +83,7 @@ export interface ReceiptTimestamps {
 export interface SlotFlowReceipt {
   receiptId: string;
   traceId: string;
+  appId?: string;
   signature?: string;
   policy: SlotFlowPolicy;
   routeKind?: RouteKind;
