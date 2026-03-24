@@ -1,5 +1,5 @@
 {
-  "name": "@slotflow/shared",
+  "name": "@slotflow/sdk",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -10,6 +10,9 @@
     "build": "tsc",
     "test": "echo 'no tests'",
     "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@slotflow/shared": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.7.0",
