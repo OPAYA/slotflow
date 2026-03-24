@@ -1,69 +1,231 @@
 # SlotFlow
 
-SlotFlow는 Solana 앱이 트랜잭션을 보낼 때 fee knob를 직접 조합하는 대신,
-원하는 execution quality(FAST / PROTECTED / RELIABLE)를 선언해서 전송하도록 해주는
-**policy-driven execution layer**다.
+**Policy-driven execution layer for Solana.**
 
-> 지금: `sendTransaction + fee 튜닝 + 운`
->
-> SlotFlow: **"이건 빠르게 / 이건 보호되게 / 이건 안정적으로"**를 선택해서 보냄
+Solana apps currently tune fee knobs, pick routes, and pray.
+SlotFlow replaces that with a single declaration: *how* you want your transaction executed.
 
-## 핵심 약속
+```ts
+import { SlotFlowClient } from "@slotflow/sdk";
 
-- **Fee-first → Policy-first**: 수수료 숫자 대신 제품 수준의 실행 의도를 선택한다.
-- **Route-aware execution**: public RPC / protected path / fast path를 정책에 맞게 선택한다.
-- **Explainable receipt**: signature만 주는 대신 route, fee, retry, status를 설명 가능한 receipt로 돌려준다.
-- **Honest claims**: guaranteed, perfect protection 같은 표현을 피하고 optimized / enhanced / focused language만 쓴다.
-- **Off-chain control plane first**: 핵심 가치는 체인 도달 전 라우팅과 상태 관리에 있다.
+const sf = new SlotFlowClient({ baseUrl: "http://localhost:3001" });
 
-## MVP 정책
+const receipt = await sf.send(signedTx, {
+  policy: "PROTECTED",          // FAST | PROTECTED | RELIABLE
+  maxFeeLamports: 50_000,
+});
 
-| Policy | 목적 | 대표 사용처 |
-| --- | --- | --- |
-| `FAST` | landed latency 최소화 | bot, urgent action, latency-sensitive UX |
-| `PROTECTED` | 나쁜 실행 위험 완화 | retail swap, aggregator, consumer wallet |
-| `RELIABLE` | ambiguous state 없이 안정적 완료 추적 | payment, payroll, settlement |
+console.log(receipt.status);      // "submitted"
+console.log(receipt.routeKind);   // "protected"
+console.log(receipt.explanation); // why this route was chosen
+```
 
-## 문서 맵
+---
 
-개발 시작 전 아래 순서로 읽으면 된다.
+## Three Policies, One Interface
 
-1. `.omx/plans/prd-slotflow-mvp.md` — 제품 정의, 범위, acceptance criteria
-2. `docs/architecture.md` — 시스템 구조, execution lifecycle, state machine
-3. `docs/api-contracts.md` — SDK/HTTP/data contracts
-4. `.omx/plans/test-spec-slotflow-mvp.md` — 테스트 전략, demo 검증 기준
-5. `docs/implementation-plan.md` — 7일 빌드 플랜, 파일 구조, 우선순위 티켓
+| Policy | Intent | Route Priority | Confirmation | Retry |
+|--------|--------|---------------|-------------|-------|
+| **`FAST`** | Lowest landed latency | fast > protected > public | `processed` | Minimal |
+| **`PROTECTED`** | Reduce harmful execution risk | protected > public > fast | `confirmed` | Limited |
+| **`RELIABLE`** | Track to terminal state, no ambiguity | public > protected > fast | `confirmed` | Conservative |
 
-## MVP 산출물
+Each policy produces a **different execution plan** with different route scoring, fee posture, preflight behavior, and retry strategy. Every decision is recorded in an **explainable receipt**.
 
-- Policy-based send SDK
-- Routing engine + route adapters
-- Retry / confirmation state machine
-- Receipt + observability dashboard
-- Demo app 2종 이상 (swap / payment / fast action 중 최소 2개)
+---
 
-## 절대 과장하지 말 것
+## Architecture
 
-**금지 표현**
-- 완벽한 MEV 방지
-- 실행 보장
-- 모든 tx 품질 보장
-- 모든 path에서 private
-- BAM integrated and production-ready
+```
+App / Wallet / Demo
+      |
+  SlotFlow SDK          ---- send(signedTx, { policy })
+      |
+  SlotFlow API           ---- POST /v1/executions
+      |
+  Policy Engine          ---- score routes, compute fees, generate explanation
+      |
+  Route Adapter          ---- SolanaRpcAdapter (config-driven, single impl)
+      |                        public_rpc | protected | fast
+  Solana Network
+      |
+  Tx Monitor             ---- poll RPC, drive state machine transitions
+      |
+  Receipt Store          ---- state-machine-enforced, structuredClone isolation
+      |
+  Dashboard              ---- executions list, receipt detail, policy comparison
+```
 
-**권장 표현**
-- policy-driven
-- route-aware
-- quality-optimized
-- protection-enhanced
-- reliability-focused
+### Key Design Decisions
 
-## 바로 시작할 때의 추천 순서
+- **Config-driven adapter** -- one `SolanaRpcAdapter` class, three factory functions. Zero duplication.
+- **State machine at the store boundary** -- `canTransition()` is enforced on every write, not just in the monitor.
+- **Typed domain errors** -- `SlotFlowError(code, message, retryable)` everywhere. No string matching.
+- **Monitor loop connected** -- `ExecutionRegistry` tracks active receipts, `startMonitorLoop` drives `submitted -> confirmed -> finalized`.
+- **Compute budget injection** -- `injectComputeBudget()` available pre-signature for actual fee application.
 
-1. pnpm workspace / TypeScript monorepo bootstrap
-2. shared contracts + receipt/status enum 확정
-3. policy engine / adapter interface 구현
-4. API send endpoint + tx monitor worker
-5. dashboard + comparison demo 연결
+---
 
-자세한 개발 순서는 `docs/implementation-plan.md`에 정리돼 있다.
+## Project Structure
+
+```
+slotflow/
+  packages/
+    shared/            Core contracts: policy, receipt, route, error types
+    sdk/               SlotFlowClient (send, getReceipt, subscribe)
+    policy-engine/     Policy -> execution plan (scorer + fee + explain)
+    route-adapters/    SolanaRpcAdapter + mock adapters
+    solana-utils/      Keypair, transfer, airdrop, compute budget helpers
+  services/
+    api/               Fastify API server + execution orchestration
+  workers/
+    tx-monitor/        State machine + polling monitor + loop
+  apps/
+    dashboard/         Executions list, receipt detail, comparison
+    demo-swap/         PROTECTED policy demo (token swap)
+    demo-payments/     RELIABLE policy demo (payment tracking)
+  scripts/
+    seed.ts            Mock data seeding (3 policies)
+    seed-devnet.ts     Real devnet transaction seeding
+    smoke.ts           9-point API verification
+```
+
+---
+
+## Quick Start
+
+```bash
+# Install
+pnpm install
+
+# Start API server (mock mode -- no RPC needed)
+SLOTFLOW_MOCK=true pnpm api
+
+# Seed demo data
+pnpm seed
+
+# Start dashboard
+pnpm dashboard              # http://localhost:3000
+
+# Start demo apps
+pnpm --filter @slotflow/demo-swap dev      # http://localhost:3002
+pnpm --filter @slotflow/demo-payments dev   # http://localhost:3003
+```
+
+### Devnet Mode
+
+```bash
+# 1. Fund the demo wallet
+#    Visit https://faucet.solana.com
+#    Paste the payer address from .keys/demo-payer.json
+
+# 2. Start API with real adapters
+SLOTFLOW_MOCK=false pnpm api
+
+# 3. Seed real transactions
+pnpm seed:devnet
+```
+
+---
+
+## Verification
+
+```bash
+# Unit + integration tests (56 tests)
+pnpm test
+
+# Smoke tests against running API (9 checks)
+pnpm smoke
+
+# Production builds
+pnpm --filter @slotflow/dashboard build
+pnpm --filter @slotflow/demo-swap build
+pnpm --filter @slotflow/demo-payments build
+```
+
+---
+
+## API
+
+### `POST /v1/executions`
+
+Send a signed transaction with a policy.
+
+```json
+{
+  "signedTransaction": "BASE64_TX",
+  "options": {
+    "policy": "PROTECTED",
+    "appId": "demo-swap",
+    "maxFeeLamports": 50000,
+    "confirmationTarget": "confirmed"
+  }
+}
+```
+
+Returns a full `SlotFlowReceipt` with status, route, fee, explanation, and timeline.
+
+### `GET /v1/executions/:receiptId`
+
+Fetch the latest receipt state.
+
+### `GET /v1/executions`
+
+List executions. Filter by `policy`, `status`, `appId`.
+
+### `GET /v1/metrics/compare?actionGroup=...`
+
+Compare policy results side-by-side for the same action group.
+
+---
+
+## Receipt Lifecycle
+
+```
+accepted -> planned -> submitted -> relayed -> processed -> confirmed -> finalized
+                          |            |          |
+                          +-> failed   +-> expired +-> expired
+                          +-> expired
+```
+
+Terminal states: `finalized`, `expired`, `failed`.
+The state machine is enforced at the store level -- invalid transitions throw `SlotFlowError`.
+
+---
+
+## Tech Stack
+
+| Layer | Choice |
+|-------|--------|
+| Runtime | Node.js 20, TypeScript |
+| Package manager | pnpm workspaces |
+| API server | Fastify |
+| Frontend | Next.js 15 App Router |
+| Validation | Zod-ready (types first) |
+| Test | Vitest |
+| Storage | In-memory (interface-based, swappable to Postgres) |
+
+---
+
+## Language Policy
+
+SlotFlow does not make guarantees. All copy uses honest language:
+
+| Do not say | Say instead |
+|-----------|-------------|
+| guaranteed execution | policy-driven execution |
+| perfect MEV protection | protection-enhanced routing |
+| always succeeds | reliability-focused delivery |
+| private for all paths | route-aware path selection |
+
+This is enforced by the smoke test suite.
+
+---
+
+## Documentation
+
+1. [PRD](.omx/plans/prd-slotflow-mvp.md) -- Product definition, acceptance criteria
+2. [Architecture](docs/architecture.md) -- System design, state machine, lifecycle
+3. [API Contracts](docs/api-contracts.md) -- SDK, HTTP, receipt schema
+4. [Test Spec](.omx/plans/test-spec-slotflow-mvp.md) -- Test strategy, verification criteria
+5. [Implementation Plan](docs/implementation-plan.md) -- Build phases, file structure
