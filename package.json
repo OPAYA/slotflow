@@ -1,15 +1,23 @@
 {
   "name": "slotflow",
   "private": true,
+  "type": "module",
   "packageManager": "pnpm@9.15.4",
   "scripts": {
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "dev": "pnpm -r --parallel dev",
     "lint": "pnpm -r lint",
-    "clean": "pnpm -r clean"
+    "clean": "pnpm -r clean",
+    "seed": "tsx scripts/seed.ts",
+    "smoke": "tsx scripts/smoke.ts",
+    "api": "pnpm --filter @slotflow/api dev",
+    "dashboard": "pnpm --filter @slotflow/dashboard dev"
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
   }
 }
