@@ -14,3 +14,9 @@ export {
   type StatusPoller,
   type MonitorEvent,
 } from "./monitor.js";
+
+export {
+  startMonitorLoop,
+  ExecutionRegistry,
+  type MonitorLoopDeps,
+} from "./loop.js";

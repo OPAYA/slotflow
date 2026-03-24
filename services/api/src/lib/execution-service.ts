@@ -13,20 +13,24 @@ import type {
 import { SlotFlowError } from "@slotflow/shared";
 import { deriveExecutionPlan } from "@slotflow/policy-engine";
 import type { RouteAdapter } from "@slotflow/route-adapters";
+import type { ExecutionRegistry } from "@slotflow/tx-monitor";
 import type { ExecutionStore } from "./store.js";
 
 export interface ExecutionServiceDeps {
   store: ExecutionStore;
   adapters: RouteAdapter[];
+  registry?: ExecutionRegistry;
 }
 
 export class ExecutionService {
   private store: ExecutionStore;
   private adapters: RouteAdapter[];
+  private registry?: ExecutionRegistry;
 
   constructor(deps: ExecutionServiceDeps) {
     this.store = deps.store;
     this.adapters = deps.adapters;
+    this.registry = deps.registry;
   }
 
   async execute(request: SlotFlowSendRequest): Promise<SlotFlowReceipt> {
@@ -65,6 +69,20 @@ export class ExecutionService {
     });
 
     this.store.save(receipt);
+
+    // 5. register for monitoring if submitted successfully
+    if (receipt.status === "submitted" && receipt.signature && this.registry) {
+      this.registry.register({
+        receiptId: receipt.receiptId,
+        signature: receipt.signature,
+        currentStatus: receipt.status,
+        confirmationTarget: receipt.confirmationTarget,
+        maxRetries: plan.retryStrategy.maxRetries,
+        retryCount: 0,
+        createdAt: Date.now(),
+      });
+    }
+
     return receipt;
   }
 
