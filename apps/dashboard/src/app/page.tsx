@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { fetchExecutions } from "@/lib/api";
-import type { SlotFlowReceipt } from "@slotflow/shared";
+import type { SlotFlowReceipt } from "@/lib/types";
 
 const policyColor: Record<string, string> = {
   FAST: "#f59e0b",

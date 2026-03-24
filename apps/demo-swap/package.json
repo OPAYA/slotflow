@@ -9,7 +9,6 @@
     "test": "echo 'no tests'"
   },
   "dependencies": {
-    "@slotflow/shared": "workspace:*",
     "next": "^15.3.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"

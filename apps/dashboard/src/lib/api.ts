@@ -1,6 +1,6 @@
 // ── Dashboard API client ──
 
-import type { SlotFlowReceipt } from "@slotflow/shared";
+import type { SlotFlowReceipt } from "./types.js";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 

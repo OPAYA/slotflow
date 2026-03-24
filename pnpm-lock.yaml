@@ -17,9 +17,6 @@ importers:
 
   apps/dashboard:
     dependencies:
-      '@slotflow/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       next:
         specifier: ^15.3.0
         version: 15.5.14(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -45,9 +42,6 @@ importers:
 
   apps/demo-payments:
     dependencies:
-      '@slotflow/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       next:
         specifier: ^15.3.0
         version: 15.5.14(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -73,9 +67,6 @@ importers:
 
   apps/demo-swap:
     dependencies:
-      '@slotflow/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       next:
         specifier: ^15.3.0
         version: 15.5.14(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
